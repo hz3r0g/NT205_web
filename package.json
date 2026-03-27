@@ -1,0 +1,37 @@
+{
+  "name": "nt208_project",
+  "version": "1.0.0",
+  "description": "1. [Giới thiệu repo](#giới-thiệu-repo)\r 2. [Hướng dẫn sử dụng git và github](#hướng-dẫn-sử-dụng-git-và-github)\r 3. [Gitflow](#gitflow)\r 4. [Nội dung đồ án](#nội-dung-đồ-án)\r 5. [Tổng kết](#tổng-kết)",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app.js",
+    "start:dev": "nodemon app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hz3r0g/NT208_PROJECT.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/hz3r0g/NT208_PROJECT/issues"
+  },
+  "homepage": "https://github.com/hz3r0g/NT208_PROJECT#readme",
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "hbs": "^4.2.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.1.1",
+    "mysql2": "^3.20.0",
+    "nodemailer": "^8.0.4",
+    "ws": "^8.20.0"
+  }
+}
