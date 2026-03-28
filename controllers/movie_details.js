@@ -4,13 +4,13 @@ exports.getMovieDetails = (req, res) => {
     const user = req.session.user; // Lấy thông tin người dùng từ session
     const ID_P = req.params.ID_P; // Lấy ID phim từ URL
 
-    const movieQuery = 'SELECT * FROM Phim WHERE ID_P = ?';
+    const movieQuery = 'SELECT * FROM Phim WHERE ID_P = $1';
     const showtimeQuery = `
         SELECT sc.ID_SC, sc.NgayGioChieu, pc.TenPhong, rp.TenRap
         FROM SuatChieu sc
         JOIN PhongChieu pc ON sc.ID_PC = pc.ID_PC
         JOIN RapPhim rp ON pc.ID_R = rp.ID_R
-        WHERE sc.ID_P = ?
+        WHERE sc.ID_P = $1
         ORDER BY sc.NgayGioChieu ASC
     `;
 
@@ -26,7 +26,7 @@ exports.getMovieDetails = (req, res) => {
 
         const phim = movieResults[0]; // Lấy thông tin phim đầu tiên
 
-        db.query(showtimeQuery, [ID_P], (err, showtimeResults) => {
+            db.query(showtimeQuery, [ID_P], (err, showtimeResults) => {
             if (err) {
                 console.error('Database error (showtime):', err);
                 return res.status(500).send('Internal Server Error');
@@ -100,7 +100,7 @@ exports.getSeatDetails = (req, res) => {
         JOIN PhongChieu pc ON sc.ID_PC = pc.ID_PC
         JOIN RapPhim rp ON pc.ID_R = rp.ID_R
         JOIN Phim p ON sc.ID_P = p.ID_P
-        WHERE sc.ID_SC = ?
+        WHERE sc.ID_SC = $1
     `;
 
     db.query(screeningQuery, [ID_SC], (err, screeningResults) => {

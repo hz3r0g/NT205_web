@@ -1,6 +1,5 @@
 const express = require('express');
 const path = require('path');
-const mysql = require('mysql2');
 const dotenv = require('dotenv');
 const session = require('express-session');
 const http = require('http');
@@ -29,7 +28,7 @@ app.use(express.json());
 app.set('view engine', 'hbs');
 
 app.use(session({
-    secret: 'your_secret_key',
+    secret: process.env.SESSION_SECRET || 'your_secret_key',
     resave: false,
     saveUninitialized: false,
     cookie: {

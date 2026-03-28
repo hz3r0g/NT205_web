@@ -1,130 +1,93 @@
-const mysql = require('mysql2');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
-
-
-
-const db = mysql.createConnection({
-    host: process.env.DATABASE_HOST,
-    user: process.env.DATABASE_USER,
-    password: process.env.DATABASE_PASSWORD,
-    database: process.env.DATABASE
-});
+const db = require('../db');
 
 exports.register = (req, res) => {
-   
-
-    // const name = req.body.name;
-    // const email = req.body.email;
-    // const password = req.body.password;
-    // const passwordConfirm = req.body.passwordConfirm;
-
     const {HoTen, NgaySinh, SDT, Email, TenTaiKhoan, MatKhau, MatKhau2} = req.body;
-    console.log("Họ tên:",HoTen);
-    console.log("Ngày sinh:", NgaySinh);
-    console.log("Số điện thoại:", SDT);
-    console.log("Email:", Email);
-    console.log("Tên tài khoản:", TenTaiKhoan);
-    console.log("Mật khẩu:", MatKhau[0]);
-    console.log("Mật khẩu xác thực:", MatKhau2[0]);
-    db.query('SELECT * FROM users WHERE Email = ? OR TenTaiKhoan = ?', [Email, TenTaiKhoan], async (err, result) => {
+
+    if (MatKhau !== MatKhau2) {
+        return res.render('register', { message: 'Mật khẩu xác thực không khớp!' });
+    }
+
+    db.query('SELECT * FROM users WHERE Email = $1 OR TenTaiKhoan = $2', [Email, TenTaiKhoan], async (err, result) => {
         if (err) {
             console.log(err);
+            return res.status(500).send('Internal Server Error');
         }
-        if(result.length > 0) {
-            return res.render('register', {
-                message: 'Gmail hoặc tên đăng nhập đã được sử dụng!'
-            });
-        } else if (MatKhau !== MatKhau2) {
-            return res.render('register', {
-                message: 'Mật khẩu xác thực không khớp!'
-            });
+
+        if (result && result.length > 0) {
+            return res.render('register', { message: 'Gmail hoặc tên đăng nhập đã được sử dụng!' });
         }
 
         let hashedPassword = await bcrypt.hash(MatKhau, 8);
-        console.log(hashedPassword);
-        // Tạo ID_U tự động tăng dần
-        // Lấy số lượng người dùng hiện tại trong cơ sở dữ liệu
-        db.query('SELECT COUNT(*) AS userCount FROM users', (err, countResult) => {
+
+        db.query('SELECT COUNT(*) AS usercount FROM users', (err, countResult) => {
             if (err) {
                 console.log(err);
                 return res.status(500).send('Internal Server Error');
             }
-        
-            const userCount = countResult[0].userCount; // Lấy số lượng người dùng
-            const ID_U = 'U' + (userCount + 1); // Tạo ID_U là U + số thứ tự
-        
-            db.query('INSERT INTO users SET ?', {
-                ID_U: ID_U,
-                HoTen: HoTen,
-                NgaySinh: NgaySinh,
-                SDT: SDT,
-                Email: Email,
-                NgayTaoTaiKhoan: db.raw('NOW()'),
-                VaiTro: "KhachHang",
-                TenTaiKhoan: TenTaiKhoan,
-                MatKhau: hashedPassword,
-                TongSoTien: 0
-            }, (err, result) => {
+
+            const userCount = parseInt(countResult[0].usercount) || 0;
+            const ID_U = 'U' + (userCount + 1);
+
+            const insertSql = `INSERT INTO users (ID_U, HoTen, NgaySinh, SDT, Email, NgayTaoTaiKhoan, VaiTro, TenTaiKhoan, MatKhau, TongSoTien) VALUES ($1,$2,$3,$4,$5,NOW(),$6,$7,$8,$9)`;
+
+            db.query(insertSql, [ID_U, HoTen, NgaySinh, SDT, Email, 'KhachHang', TenTaiKhoan, hashedPassword, 0], (err) => {
                 if (err) {
                     console.log(err);
-                } else {
-                    const user = result[0];
-                     // Lưu thông tin người dùng vào session
-                     req.session.user = {
-                        ID_U: ID_U,
-                        TenTaiKhoan: TenTaiKhoan,
-                        HoTen: HoTen,
-                        NgaySinh: NgaySinh,
-                        SDT: SDT,
-                        Email: Email,
-                        TongSoTien: 0, // Giá trị mặc định
-                    };
-                    return res.redirect('/'); // Chuyển hướng đến URL /index
+                    return res.status(500).send('Internal Server Error');
                 }
+
+                req.session.user = {
+                    ID_U: ID_U,
+                    TenTaiKhoan: TenTaiKhoan,
+                    HoTen: HoTen,
+                    NgaySinh: NgaySinh,
+                    SDT: SDT,
+                    Email: Email,
+                    TongSoTien: 0,
+                };
+                return res.redirect('/');
             });
         });
     });
-
-    
-    
-}
-
-
+};
 
 exports.login = async (req, res) => {
-    
-
     const { TenTaiKhoan, MatKhau } = req.body;
-    console.log("Tài khoản:",TenTaiKhoan);
-    console.log("Mật khẩu:", MatKhau[0]);
-    // Kiểm tra xem tài khoản có tồn tại trong cơ sở dữ liệu không
-    db.query('SELECT * FROM users WHERE TenTaiKhoan = ?', [TenTaiKhoan], async (err, results) => {
+
+    db.query('SELECT * FROM users WHERE TenTaiKhoan = $1', [TenTaiKhoan], async (err, results) => {
         if (err) {
             console.error('Database error:', err);
             return res.status(500).send('Internal Server Error');
         }
 
-        // Nếu không tìm thấy tài khoản
-        if (results.length === 0) {
-            return res.render('login', {
-                message: 'Tài khoản không tồn tại!'
-            });
-            
+        if (!results || results.length === 0) {
+            return res.render('login', { message: 'Tài khoản không tồn tại!' });
         }
 
-        // Kiểm tra mật khẩu
-        const user = results[0];
-        const isMatch = await bcrypt.compare(MatKhau, user.MatKhau);
+            const user = results[0];
+            // Normalize password field from form (some clients send as array)
+            const plainPassword = Array.isArray(MatKhau) ? MatKhau[0] : MatKhau;
 
-        if (!isMatch) {
-            return res.render('login', {
-                message: 'Mật khẩu không đúng!'
-            });
-        }
+            if (!user || !user.MatKhau) {
+                console.error('User record missing hashed password:', user);
+                return res.render('login', { message: 'Tài khoản không đúng hoặc chưa được thiết lập mật khẩu.' });
+            }
 
-        // Lưu thông tin người dùng vào session
+            let isMatch = false;
+            try {
+                isMatch = await bcrypt.compare(plainPassword, user.MatKhau);
+            } catch (err) {
+                console.error('bcrypt.compare error:', err);
+                return res.status(500).send('Internal Server Error');
+            }
+
+            if (!isMatch) {
+                return res.render('login', { message: 'Mật khẩu không đúng!' });
+            }
+
         req.session.user = {
             ID_U: user.ID_U,
             TenTaiKhoan: user.TenTaiKhoan,
@@ -133,15 +96,12 @@ exports.login = async (req, res) => {
             SDT: user.SDT,
             Email: user.Email,
             TongSoTien: user.TongSoTien,
-
         };
-        
-        // Tạo mã OTP
-        const otp = exports.generateOtp();
-        req.session.otp = otp; // Lưu OTP vào session
-        req.session.otpExpires = Date.now() + 5 * 60 * 1000; // OTP hết hạn sau 5 phút
 
-        // Gửi OTP qua email
+        const otp = exports.generateOtp();
+        req.session.otp = otp;
+        req.session.otpExpires = Date.now() + 5 * 60 * 1000;
+
         exports.sendOtp(user.Email, otp)
             .then(() => {
                 res.render('otp', { message: 'Mã OTP đã được gửi đến email của bạn!' });
@@ -153,37 +113,27 @@ exports.login = async (req, res) => {
     });
 };
 
-exports.forgot_pass = (req, res) => { 
-    console.log(req.body);
-
+exports.forgot_pass = (req, res) => {
     const { Email } = req.body;
 
     if (!Email) {
-        return res.render('forgot_pass', {
-            message: 'Vui lòng nhập email!'
-        });
+        return res.render('forgot_pass', { message: 'Vui lòng nhập email!' });
     }
 
-    db.query('SELECT * FROM users WHERE Email = ?', [Email], (err, results) => {
+    db.query('SELECT * FROM users WHERE Email = $1', [Email], (err, results) => {
         if (err) {
             console.error('Database error:', err);
             return res.status(500).send('Internal Server Error');
         }
 
-        // Nếu không tìm thấy tài khoản
-        if (results.length === 0) {
-            return res.render('forgot_pass', {
-                message: 'Email không tồn tại!'
-            });
+        if (!results || results.length === 0) {
+            return res.render('forgot_pass', { message: 'Email không tồn tại!' });
         }
 
-        // Tạo token với email của người dùng
-        const token = jwt.sign({ email: Email }, process.env.JWT_SECRET, { expiresIn: '15m' }); // Token hết hạn sau 15 phút
-
-        // Thêm token vào link trong email
+        const token = jwt.sign({ email: Email }, process.env.JWT_SECRET, { expiresIn: '15m' });
         const resetLink = `http://localhost:3000/auth/verify_code?token=${token}`;
+
         var transporter = nodemailer.createTransport({
-            
             host: process.env.GMAIL_HOST,
             port: process.env.GMAIL_PORT,
             secure: false,
@@ -208,12 +158,10 @@ exports.forgot_pass = (req, res) => {
             }
         });
 
-        // Nếu tài khoản tồn tại, gửi email đặt lại mật khẩu (chưa thực hiện trong đoạn mã này)
-        return res.render('share/successed_mail', {
-            message: 'Đã gửi email đặt lại mật khẩu cho email!'
-        });
+        return res.render('share/successed_mail', { message: 'Đã gửi email đặt lại mật khẩu cho email!' });
     });
 };
+
 exports.verifyOtp = (req, res) => {
     const { otp } = req.body;
 
@@ -229,24 +177,19 @@ exports.verifyOtp = (req, res) => {
         return res.render('otp', { message: 'Mã OTP không đúng!' });
     }
 
-    // Xác thực thành công
-    req.session.otp = null; // Xóa OTP khỏi session
+    req.session.otp = null;
     req.session.otpExpires = null;
-    res.redirect('/'); // Chuyển hướng đến trang chính
+    res.redirect('/');
 };
 
 exports.verify_code = (req, res) => {
     const token = req.query.token;
 
-    // Kiểm tra token
     jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
         if (err) {
-            return res.render('error', {
-                message: 'Link không hợp lệ hoặc đã hết hạn!'
-            });
+            return res.render('error', { message: 'Link không hợp lệ hoặc đã hết hạn!' });
         }
 
-        // Nếu token hợp lệ, hiển thị form đổi mật khẩu
         res.render('reset_pass', { Email: decoded.email });
     });
 };
@@ -255,38 +198,28 @@ exports.reset_pass = async (req, res) => {
     const { Email, MatKhau, MatKhau2 } = req.body;
 
     if (!Email) {
-        return res.render('reset_pass', {
-            message: 'Email không hợp lệ!'
-        });
+        return res.render('reset_pass', { message: 'Email không hợp lệ!' });
     }
 
-    // Kiểm tra xem mật khẩu mới và xác nhận mật khẩu có khớp không
     if (MatKhau !== MatKhau2) {
-        return res.render('reset_pass', {
-            message: 'Mật khẩu xác thực không khớp!'
-        });
+        return res.render('reset_pass', { message: 'Mật khẩu xác thực không khớp!' });
     }
 
-    // Mã hóa mật khẩu mới
     const hashedPassword = await bcrypt.hash(MatKhau, 8);
 
-    // Cập nhật mật khẩu trong cơ sở dữ liệu
-    db.query('SELECT * FROM users WHERE Email = ?', [Email], (err, results) => {
+    db.query('SELECT * FROM users WHERE Email = $1', [Email], (err, results) => {
         if (err) {
             console.error('Database error:', err);
             return res.status(500).send('Internal Server Error');
         }
 
-        db.query('UPDATE users SET MatKhau = ? WHERE Email = ?', [hashedPassword, Email], (err, results) => {
+        db.query('UPDATE users SET MatKhau = $1 WHERE Email = $2', [hashedPassword, Email], (err) => {
             if (err) {
                 console.error('Database error:', err);
                 return res.status(500).send('Internal Server Error');
             }
 
-            // Nếu cập nhật thành công
-            return res.render('login', {
-                message: 'Đặt lại mật khẩu thành công!'
-            });
+            return res.render('login', { message: 'Đặt lại mật khẩu thành công!' });
         });
     });
 };
@@ -319,7 +252,7 @@ exports.sendOtp = (email, otp) => {
 exports.loginWithOtp = (req, res) => {
     const { TenTaiKhoan, MatKhau } = req.body;
 
-    db.query('SELECT * FROM users WHERE TenTaiKhoan = ?', [TenTaiKhoan], async (err, results) => {
+    db.query('SELECT * FROM users WHERE TenTaiKhoan = $1', [TenTaiKhoan], async (err, results) => {
         if (err) {
             console.error('Database error:', err);
             return res.status(500).send('Internal Server Error');
@@ -336,13 +269,11 @@ exports.loginWithOtp = (req, res) => {
             return res.render('login', { message: 'Mật khẩu không đúng!' });
         }
 
-        // Tạo mã OTP
         const otp = exports.generateOtp();
-        req.session.otp = otp; // Lưu OTP vào session
-        req.session.otpExpires = Date.now() + 5 * 60 * 1000; // OTP hết hạn sau 5 phút
-        req.session.user = user; // Lưu thông tin người dùng vào session
+        req.session.otp = otp;
+        req.session.otpExpires = Date.now() + 5 * 60 * 1000;
+        req.session.user = user;
 
-        // Gửi OTP qua email
         exports.sendOtp(user.Email, otp)
             .then(() => {
                 res.render('otp', { message: 'Mã OTP đã được gửi đến email của bạn!' });
@@ -369,8 +300,7 @@ exports.verifyOtp = (req, res) => {
         return res.render('otp', { message: 'Mã OTP không đúng!' });
     }
 
-    // Xác thực thành công
-    req.session.otp = null; // Xóa OTP khỏi session
+    req.session.otp = null;
     req.session.otpExpires = null;
-    res.redirect('/'); //
+    res.redirect('/');
 };

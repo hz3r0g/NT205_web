@@ -10,7 +10,7 @@ exports.refreshSession = (req, res, next) => {
         return next(); // Nếu không có session, bỏ qua middleware
     }
 
-    db.query('SELECT * FROM users WHERE TenTaiKhoan = ?', [user.TenTaiKhoan], (err, results) => {
+    db.query('SELECT * FROM users WHERE TenTaiKhoan = $1', [user.TenTaiKhoan], (err, results) => {
         if (err) {
             console.error('Database error:', err);
             return res.status(500).send('Internal Server Error');
@@ -61,7 +61,7 @@ exports.editProfile = (req, res) => {
     }
 
     db.query(
-        'UPDATE users SET HoTen = ?, NgaySinh = ?, SDT = ?, Email = ? WHERE TenTaiKhoan = ?',
+        'UPDATE users SET HoTen = $1, NgaySinh = $2, SDT = $3, Email = $4 WHERE TenTaiKhoan = $5',
         [HoTen, NgaySinh, SDT, Email, user.TenTaiKhoan],
         (err) => {
             if (err) {

@@ -25,7 +25,7 @@ function initializeSeatMap(screeningId) {
     
     return new Promise((resolve, reject) => {
         // Truy vấn ID_PC từ suất chiếu - thêm pc. hoặc sc. để xác định rõ cột từ bảng nào
-        db.query('SELECT sc.ID_PC FROM SuatChieu sc JOIN PhongChieu pc ON sc.ID_PC = pc.ID_PC WHERE sc.ID_SC = ?', [screeningId], (err, results) => {
+        db.query('SELECT sc.ID_PC FROM SuatChieu sc JOIN PhongChieu pc ON sc.ID_PC = pc.ID_PC WHERE sc.ID_SC = $1', [screeningId], (err, results) => {
             if (err) {
                 console.error(`Error getting room ID for screening ${screeningId}:`, err);
                 reject(err);
@@ -42,7 +42,7 @@ function initializeSeatMap(screeningId) {
             console.log(`Found room ${roomId} for screening ${screeningId}`);
             
             // Truy vấn tất cả các ghế từ cơ sở dữ liệu cho phòng chiếu này
-            db.query('SELECT ID_G, SoGhe, LoaiGhe FROM Ghe WHERE ID_PC = ?', [roomId], (err, seats) => {
+            db.query('SELECT ID_G, SoGhe, LoaiGhe FROM Ghe WHERE ID_PC = $1', [roomId], (err, seats) => {
                 if (err) {
                     console.error(`Error fetching seats for room ${roomId}:`, err);
                     reject(err);
@@ -174,7 +174,7 @@ exports.initWebSocketHandlers = (wss) => {
                         FROM ChiTietDatVe ct 
                         JOIN DatVe dv ON ct.ID_DV = dv.ID_DV 
                         JOIN Ghe g ON ct.ID_G = g.ID_G
-                        WHERE dv.ID_SC = ?
+                        WHERE dv.ID_SC = $1
                     `;
                     
                     db.query(bookedSeatsQuery, [currentScreening], (err, results) => {
@@ -348,7 +348,7 @@ function handleSeatBooking(ws, screeningId, seatIds, userId) {
         .then(() => {
             // Truy vấn giá vé từ bảng SuatChieu
             return new Promise((resolve, reject) => {
-                db.query('SELECT GiaVe FROM SuatChieu WHERE ID_SC = ?', [screeningId], (err, priceResults) => {
+                db.query('SELECT GiaVe FROM SuatChieu WHERE ID_SC = $1', [screeningId], (err, priceResults) => {
                     if (err) {
                         console.error('Error getting ticket price:', err);
                         reject('Đã xảy ra lỗi khi lấy thông tin giá vé. Vui lòng thử lại.');
@@ -370,7 +370,7 @@ function handleSeatBooking(ws, screeningId, seatIds, userId) {
         .then(basePrice => {
             // Lấy ID_DV mới cho đặt vé
             return new Promise((resolve, reject) => {
-                db.query('SELECT MAX(CAST(SUBSTRING(ID_DV, 3) AS UNSIGNED)) as maxId FROM DatVe', (err, results) => {
+                db.query("SELECT MAX(CAST(SUBSTRING(ID_DV FROM 3) AS INTEGER)) as maxid FROM DatVe", (err, results) => {
                     if (err) {
                         console.error('Error getting max DatVe ID:', err);
                         reject('Đã xảy ra lỗi khi đặt vé. Vui lòng thử lại.');
@@ -435,7 +435,7 @@ function handleSeatBooking(ws, screeningId, seatIds, userId) {
                         console.error(`Seat ${seatId} not found in mapping for screening ${screeningId}. Searching in database...`);
                         
                         // Truy vấn thông tin phòng chiếu từ suất chiếu
-                        db.query('SELECT sc.ID_PC FROM SuatChieu sc WHERE sc.ID_SC = ?', [screeningId], (err, roomResults) => {
+                        db.query('SELECT sc.ID_PC FROM SuatChieu sc WHERE sc.ID_SC = $1', [screeningId], (err, roomResults) => {
                             if (err) {
                                 console.error(`Error getting room for screening ${screeningId}:`, err);
                                 reject(err);
@@ -456,7 +456,7 @@ function handleSeatBooking(ws, screeningId, seatIds, userId) {
                             const seatNumber = parseInt(seatId.substring(1));
                             const SoGhe = `${row}${seatNumber}`; // Ví dụ: "A1", "B2", "J14"
                             
-                            db.query('SELECT ID_G, LoaiGhe FROM Ghe WHERE ID_PC = ? AND SoGhe = ?', 
+                            db.query('SELECT ID_G, LoaiGhe FROM Ghe WHERE ID_PC = $1 AND SoGhe = $2', 
                                 [roomId, SoGhe], 
                                 (err, seatResults) => {
                                     if (err) {
@@ -529,7 +529,7 @@ function handleSeatBooking(ws, screeningId, seatIds, userId) {
             return new Promise((resolve, reject) => {
                 const insertBooking = `
                     INSERT INTO DatVe (ID_DV, ID_SC, ID_U, ThoiGianDat, TongTien) 
-                    VALUES (?, ?, ?, ?, ?)
+                    VALUES ($1, $2, $3, $4, $5)
                 `;
                 
                 db.query(insertBooking, [newBookingId, screeningId, dbUserId, bookingTime, totalPrice], (err) => {
@@ -554,7 +554,7 @@ function handleSeatBooking(ws, screeningId, seatIds, userId) {
             seatInfos.forEach(seatInfo => {
                 // Insert vào bảng ChiTietDatVe với giá vé tương ứng
                 db.query(
-                    'INSERT INTO ChiTietDatVe (ID_DV, ID_G, GiaVe) VALUES (?, ?, ?)', 
+                    'INSERT INTO ChiTietDatVe (ID_DV, ID_G, GiaVe) VALUES ($1, $2, $3)', 
                     [newBookingId, seatInfo.seatId_G, seatInfo.price], 
                     (err) => {
                         completedSeats++;
@@ -658,7 +658,7 @@ exports.refresh = (req, res) => {
         FROM ChiTietDatVe ct 
         JOIN DatVe dv ON ct.ID_DV = dv.ID_DV 
         JOIN Ghe g ON ct.ID_G = g.ID_G
-        WHERE dv.ID_SC = ?
+        WHERE dv.ID_SC = $1
     `;
     
     db.query(bookedSeatsQuery, [screeningId], (err, results) => {
@@ -746,7 +746,7 @@ exports.getTicketPrice = (req, res) => {
     }
     
     // Truy vấn giá vé từ bảng SuatChieu
-    db.query('SELECT GiaVe FROM SuatChieu WHERE ID_SC = ?', [screeningId], (err, results) => {
+    db.query('SELECT GiaVe FROM SuatChieu WHERE ID_SC = $1', [screeningId], (err, results) => {
         if (err) {
             console.error('Error getting ticket price:', err);
             return res.json({ 
