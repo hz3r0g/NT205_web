@@ -1,27 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const refreshSession = require('../controllers/profile').refreshSession;
-const db = require('../db');
 
-
-router.get('/', refreshSession, (req, res) => {
-    const user = req.session.user;
-
-    // Lấy danh sách phim từ cơ sở dữ liệu
-    db.query('SELECT * FROM Phim', (err, phim) => {
-        if (err) {
-            console.error('Database error:', err);
-            return res.status(500).send('Internal Server Error');
-        }
-
-        // Render trang index với danh sách phim và thông tin người dùng (nếu có)
-        if (user) {
-            user.TongSoTien = user.TongSoTien.toLocaleString('vi-VN');
-            return res.render('index', { user, phim});
-        }
-
-        res.render('index', { phim }); // Không gửi thông tin người dùng nếu không có session
-    });
+// Khi truy cập gốc '/', trả về trang 404 theo yêu cầu
+router.get('/', (req, res) => {
+    res.status(404).render('404', { url: req.originalUrl });
 });
 router.get('/register', (req, res) => {
     res.render("register");
