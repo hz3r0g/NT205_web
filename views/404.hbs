@@ -20,9 +20,10 @@
     </div>
 
     <div style="text-align:center; padding: 80px 20px; color: #FFF;">
-        <h1 style="font-size: 120px; margin: 0;">404</h1>
-        <h2 style="font-size: 28px; margin: 10px 0 20px;">Trang bạn tìm không tồn tại</h2>
+        <h1 style="font-size: 120px; margin: 0;">401</h1>
+        <h2 style="font-size: 28px; margin: 10px 0 20px;">Unauthorized. Vui lòng tải gói tài nguyên để xác thực.</h2>
         <a href="/resources/GoiTaiNguyen.exe" download style="display:inline-block; margin-top:20px; padding:12px 24px; background:#663399; color:#fff; border-radius:8px; text-decoration:none;">Tải gói tài nguyên (*.exe)</a>
+        <a id="homeBtn" href="#" aria-disabled="true" style="display:inline-block; margin-top:20px; margin-left:12px; padding:12px 24px; background:gray; color:#fff; border-radius:8px; text-decoration:none; pointer-events:none;">Về trang chủ</a>
     </div>
 
     <div class="bottom_bar" style="margin-top:40px;">
@@ -32,4 +33,42 @@
         </div>
     </div>
 </body>
+<script>
+// Poll /api/verify until server indicates client cert is present, then enable home button
+(function(){
+    const homeBtn = document.getElementById('homeBtn');
+    let attempts = 0;
+    const maxAttempts = 40; // ~2 minutes if interval 3s
+    const interval = 3000;
+
+    function enableHome() {
+        homeBtn.setAttribute('href', '/index');
+        homeBtn.style.background = '#4CAF50';
+        homeBtn.style.pointerEvents = 'auto';
+        homeBtn.removeAttribute('aria-disabled');
+        homeBtn.textContent = 'Về trang chủ';
+    }
+
+    function check() {
+        attempts++;
+        fetch('/api/verify')
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.verified) {
+                    enableHome();
+                } else if (attempts < maxAttempts) {
+                    setTimeout(check, interval);
+                } else {
+                    // give up after max attempts; keep disabled
+                }
+            })
+            .catch(() => {
+                if (attempts < maxAttempts) setTimeout(check, interval);
+            });
+    }
+
+    // Start polling shortly after load
+    window.addEventListener('load', () => setTimeout(check, 1000));
+})();
+</script>
 </html>
