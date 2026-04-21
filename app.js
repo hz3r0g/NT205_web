@@ -99,6 +99,7 @@ app.get('/api/verify', (req, res) => {
                 certFingerprint = hex.match(/.{2}/g).join(':');
             }
         }
+        
     } catch (e) {
         // ignore cert extraction errors
     }
