@@ -72,6 +72,9 @@ app.get('/resources/GoiTaiNguyen.exe', (req, res) => {
     });
 });
 
+// One-time download route for data.bin (will be removed after first download)
+app.use('/', require('./routes/onceDownload'));
+
 // Verification endpoint: extract gateway param, real IP and cert thumbprint (if any)
 app.get('/api/verify', (req, res) => {
     const gateway_ip = req.query.gateway || 'Unknown';
