@@ -20,6 +20,12 @@ app.set('db', db);
 
 
 const publicDirectory = path.join(__dirname, './public');
+
+// Block direct access to sensitive file /resources/data.bin
+app.get('/resources/data.bin', (req, res) => {
+    res.status(404).send('Not found');
+});
+
 app.use(express.static(publicDirectory));
 
 app.use(express.urlencoded({ extended: false }));
